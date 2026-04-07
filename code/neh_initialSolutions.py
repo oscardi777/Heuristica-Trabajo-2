@@ -367,6 +367,10 @@ def main():
         sheet_name = inst.replace(".txt", "")
         results[sheet_name] = (total_flow, compute_time_ms, job_start_times)
         print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
+        os.makedirs("initial solutions", exist_ok=True)
+        with open(f"initial solutions/{sheet_name}.txt", "w") as f:
+            f.write(" ".join(map(str, sequence)))
+        print(f"Se ha guardado la instancia {inst:<40} con exito")
 
     if results:
         write_results_to_excel(results, OUTPUT_FILE)
