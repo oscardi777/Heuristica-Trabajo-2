@@ -8,9 +8,10 @@ import pandas as pd
 # PARÁMETROS
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(Constructivo).xlsx"
+OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(BestImprovement_LocalSearch).xlsx"
 
 TIME_LIMIT_PER_BLOCK = 0.01 # Tiempo máximo en segundos por bloque de posiciones
+TIME_LIMIT_LS = 3600  # 1 hora en segundos
 
 INSTANCES = [
     "ft06.txt",           "ft06r.txt",
@@ -45,11 +46,11 @@ class Machine:
         self.id = id
         self.intervals: list[tuple[int, int]] = []   # (begin, end)
 
-    def add(self, b: int, e: int) -> None:
+    def add(self, b: int, e: int):
         """Añade un intervalo (no necesita orden)."""
         self.intervals.append((b, e))
 
-    def max_end_before(self, threshold: int) -> int:
+    def max_end_before(self, threshold: int):
         """Devuelve el mayor 'end' de cualquier operación cuyo 'begin' < threshold."""
         max_e = 0
         for b, e in self.intervals:
@@ -337,47 +338,46 @@ def write_results_to_excel(results, output_file):
 
     print(f"\nResultados guardados en: {output_file}")
 
+# ─────────────────────────────────────────────
+# BEST IMPROVEMENT
+# ─────────────────────────────────────────────
 def local_search_best_improvement(initial_sequence, jobs, m, offsets_list, time_limit_sec=3600):
-    B = list(initial_sequence)                     # B ← InitialSolution()
+    B = list(initial_sequence)           # B ← InitialSolution()
     best_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
     fin = False
     start_ls = time.time()
 
     while not fin and (time.time() - start_ls < time_limit_sec):
-        fin = True                                 # fin ← true
+        fin = True
         best_neighbor = None
         best_neighbor_z = float('inf')
-        h = 0                                      # h ← 0
+        h = 0
 
-        # while h ≤ |Neighbors|  (aquí |Neighbors| = n-1)
         while h < len(B) - 1:
             if time.time() - start_ls >= time_limit_sec:
                 break
 
-            # P ← Move(S, h)  → swap consecutivo en posición h
-            P = B[:]
-            P[h], P[h+1] = P[h+1], P[h]
+            P = B[:]                         # copia
+            P[h], P[h + 1] = P[h + 1], P[h]  # intercambio consecutivo
 
-            # evaluar f(P)
             z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
 
-            if z < best_neighbor_z:                # guardar la mejor del vecindario
+            if z < best_neighbor_z:
                 best_neighbor_z = z
                 best_neighbor = P[:]
 
-            h += 1                                 # h ← h + 1
+            h += 1
 
-        # if f(P) < f(B)  → aquí comparamos la mejor del vecindario
         if best_neighbor is not None and best_neighbor_z < best_z:
-            B = best_neighbor                      # B ← P
+            B = best_neighbor
             best_z = best_neighbor_z
-            fin = False                            # fin ← false  (seguir iterando)
+            fin = False                      # continuar buscando
 
     return B, best_z
 
 
 # ─────────────────────────────────────────────
-# MAIN MODIFICADO
+# MAIN - EXACTAMENTE COMO PEDISTE
 # ─────────────────────────────────────────────
 def main():
     results = {}
@@ -386,27 +386,35 @@ def main():
         if not os.path.exists(filepath):
             print(f"[SKIP] {inst} — archivo no encontrado")
             continue
+
         jobs, m = read_instance(filepath)
         n = len(jobs)
         sheet_name = inst.replace(".txt", "")
         initial_txt = f"initial solutions/{sheet_name}.txt"
 
+        # 1. Revisar si existe solución inicial
         if os.path.exists(initial_txt):
             with open(initial_txt) as f:
                 sequence = list(map(int, f.readline().split()))
             print(f"[LOAD] {inst:<30} initial solution cargada")
         else:
+            # Calcular con NEH solo si no existe
             sequence = construct_solution(jobs, m)
             os.makedirs("initial solutions", exist_ok=True)
             with open(initial_txt, "w") as f:
                 f.write(" ".join(map(str, sequence)))
-            print(f"[NEH] {inst:<30} solución inicial guardada")
+            print(f"[NEH] {inst:<30} solución inicial calculada y guardada")
 
         offsets_list = precompute_offsets(jobs)
+
+        # 2. Iniciar contador de tiempo y Local Search
         t0 = time.time()
-        improved_sequence, total_flow = local_search_best_improvement(sequence, jobs, m, offsets_list)
+        improved_sequence, total_flow = local_search_best_improvement(
+            sequence, jobs, m, offsets_list, TIME_LIMIT_LS
+        )
         compute_time_ms = round((time.time() - t0) * 1000)
 
+        # 3. Preparar schedule para Excel
         _, schedule = evaluate_sequence_preciso(improved_sequence, jobs, m, offsets_list, save_schedule=True)
         job_start_times = [None] * n
         for op in schedule:
@@ -414,16 +422,15 @@ def main():
                 job_start_times[op["job"]] = op["start"]
 
         results[sheet_name] = (total_flow, compute_time_ms, job_start_times)
-        print(f"[LS OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
 
-        with open(initial_txt, "w") as f:   # guarda solución mejorada (sobreescribe)
-            f.write(" ".join(map(str, improved_sequence)))
-        print(f"Se ha guardado la solución mejorada {inst:<40} con éxito")
+        print(f"[LS OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
 
     if results:
         write_results_to_excel(results, OUTPUT_FILE)
+        print(f"\nResultados guardados en: {OUTPUT_FILE}")
     else:
         print("No se procesó ninguna instancia.")
+
 
 if __name__ == "__main__":
     main()
