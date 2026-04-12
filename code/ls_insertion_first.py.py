@@ -57,14 +57,6 @@ class Machine:
                 max_e = max(max_e, e)
         return max_e
 
-
-# ─────────────────────────────────────────────
-# LECTURA DE SOLUCION INICIAL
-# ─────────────────────────────────────────────
-def load_initial(sheet_name):
-    with open(f"initial solutions/{sheet_name}.txt") as f:
-        return list(map(int, f.read().split()))
-
 # ─────────────────────────────────────────────
 # LECTURA DE INSTANCIAS
 # ─────────────────────────────────────────────
@@ -345,47 +337,47 @@ def write_results_to_excel(results, output_file):
 
     print(f"\nResultados guardados en: {output_file}")
 
+def local_search_best_improvement(initial_sequence, jobs, m, offsets_list, time_limit_sec=3600):
+    B = list(initial_sequence)                     # B ← InitialSolution()
+    best_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
+    fin = False
+    start_ls = time.time()
+
+    while not fin and (time.time() - start_ls < time_limit_sec):
+        fin = True                                 # fin ← true
+        best_neighbor = None
+        best_neighbor_z = float('inf')
+        h = 0                                      # h ← 0
+
+        # while h ≤ |Neighbors|  (aquí |Neighbors| = n-1)
+        while h < len(B) - 1:
+            if time.time() - start_ls >= time_limit_sec:
+                break
+
+            # P ← Move(S, h)  → swap consecutivo en posición h
+            P = B[:]
+            P[h], P[h+1] = P[h+1], P[h]
+
+            # evaluar f(P)
+            z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
+
+            if z < best_neighbor_z:                # guardar la mejor del vecindario
+                best_neighbor_z = z
+                best_neighbor = P[:]
+
+            h += 1                                 # h ← h + 1
+
+        # if f(P) < f(B)  → aquí comparamos la mejor del vecindario
+        if best_neighbor is not None and best_neighbor_z < best_z:
+            B = best_neighbor                      # B ← P
+            best_z = best_neighbor_z
+            fin = False                            # fin ← false  (seguir iterando)
+
+    return B, best_z
+
 
 # ─────────────────────────────────────────────
-# EVALUAR LA INSERCION EN LA SEQUENCIA COMPLETA
-# ─────────────────────────────────────────────
-def evaluate_insertion_move(seq, i, pos, jobs, m):
-    """Evalúa mover el job que está en posición i a la nueva posición pos"""
-    job = seq[i]
-    temp = seq[:i] + seq[i+1:]          # ← sacamos el job (n-1 elementos)
-    return evaluate_insertion(temp, job, pos, jobs, m)
-
-# ─────────────────────────────────────────────
-# LOGICA DEL LOCAL SEARCH INSERTION
-# ─────────────────────────────────────────────
-def local_search_insertion_first(seq, jobs, m):
-    n = len(seq)
-    while True:
-        improved = False
-        current_val = evaluate_sequence(seq, jobs, m)
-
-        for i in range(n):                    # job que vamos a mover
-            for pos in range(n):              # nueva posición de inserción (en secuencia de n-1 jobs)
-                if pos == i:                  # misma posición → no es vecino
-                    continue
-                val = evaluate_insertion_move(seq, i, pos, jobs, m)
-                if val < current_val:
-                    # APLICAR EL MOVE
-                    job = seq.pop(i)
-                    seq.insert(pos if pos < i else pos, job)   # ajuste de índice después del pop
-                    improved = True
-                    current_val = val
-                    break                     # First Improvement: salimos al primer mejora
-            if improved:
-                break                         # reiniciamos la búsqueda desde el principio
-
-        if not improved:
-            break
-    return seq
-
-
-# ─────────────────────────────────────────────
-# MAIN
+# MAIN MODIFICADO
 # ─────────────────────────────────────────────
 def main():
     results = {}
@@ -394,35 +386,44 @@ def main():
         if not os.path.exists(filepath):
             print(f"[SKIP] {inst} — archivo no encontrado")
             continue
-
         jobs, m = read_instance(filepath)
+        n = len(jobs)
         sheet_name = inst.replace(".txt", "")
+        initial_txt = f"initial solutions/{sheet_name}.txt"
 
-        # === CARGA SOLUCIÓN INICIAL (precomputada) ===
-        seq = load_initial(sheet_name)
-
-        t0 = time.time()
-        # === AQUÍ VA EL LOCAL SEARCH ===
-        seq = local_search_insertion_first(seq, jobs, m)
-        # ============================================
+        if os.path.exists(initial_txt):
+            with open(initial_txt) as f:
+                sequence = list(map(int, f.readline().split()))
+            print(f"[LOAD] {inst:<30} initial solution cargada")
+        else:
+            sequence = construct_solution(jobs, m)
+            os.makedirs("initial solutions", exist_ok=True)
+            with open(initial_txt, "w") as f:
+                f.write(" ".join(map(str, sequence)))
+            print(f"[NEH] {inst:<30} solución inicial guardada")
 
         offsets_list = precompute_offsets(jobs)
-        total_flow, schedule = evaluate_sequence_preciso(seq, jobs, m, offsets_list, save_schedule=True)
+        t0 = time.time()
+        improved_sequence, total_flow = local_search_best_improvement(sequence, jobs, m, offsets_list)
         compute_time_ms = round((time.time() - t0) * 1000)
 
-        job_start_times = [None] * len(jobs)
+        _, schedule = evaluate_sequence_preciso(improved_sequence, jobs, m, offsets_list, save_schedule=True)
+        job_start_times = [None] * n
         for op in schedule:
             if op["operation"] == 0:
                 job_start_times[op["job"]] = op["start"]
 
         results[sheet_name] = (total_flow, compute_time_ms, job_start_times)
-        print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
+        print(f"[LS OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
+
+        with open(initial_txt, "w") as f:   # guarda solución mejorada (sobreescribe)
+            f.write(" ".join(map(str, improved_sequence)))
+        print(f"Se ha guardado la solución mejorada {inst:<40} con éxito")
 
     if results:
         write_results_to_excel(results, OUTPUT_FILE)
     else:
         print("No se procesó ninguna instancia.")
-
 
 if __name__ == "__main__":
     main()
