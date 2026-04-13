@@ -14,14 +14,14 @@ TIME_LIMIT_PER_BLOCK = 0.01 # Tiempo máximo en segundos por bloque de posicione
 TIME_LIMIT_LS = 3600  # 1 hora en segundos
 
 INSTANCES = [
-    #"ft06.txt",           "ft06r.txt",
+    "ft06.txt",           "ft06r.txt",
     #"ft10.txt",           "ft10r.txt",
     #"ft20.txt",           "ft20r.txt",
     #"tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
     #"tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
     #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
-    "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
-    "tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
+    #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
+    #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
 ]
 
 
@@ -341,43 +341,35 @@ def write_results_to_excel(results, output_file):
 # ─────────────────────────────────────────────
 # BEST IMPROVEMENT
 # ─────────────────────────────────────────────
-def local_search_best_improvement(initial_sequence, jobs, m, offsets_list, time_limit_sec=3600):
-    B = list(initial_sequence)           # B ← InitialSolution()
+def local_search_best_improvement(initial_sequence, jobs, m, offsets_list, start_time):
+    B = list(initial_sequence)
     best_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
     fin = False
-    start_ls = time.time()
 
-    while not fin and (time.time() - start_ls < time_limit_sec):
+    while not fin and (time.time() - start_time < 3600):
         fin = True
         best_neighbor = None
         best_neighbor_z = float('inf')
         h = 0
-
         while h < len(B) - 1:
-            if time.time() - start_ls >= time_limit_sec:
+            if time.time() - start_time >= 3600:
                 break
-
-            P = B[:]                         # copia
-            P[h], P[h + 1] = P[h + 1], P[h]  # intercambio consecutivo
-
+            P = B[:]
+            P[h], P[h + 1] = P[h + 1], P[h]
             z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
-
             if z < best_neighbor_z:
                 best_neighbor_z = z
                 best_neighbor = P[:]
-
             h += 1
-
         if best_neighbor is not None and best_neighbor_z < best_z:
             B = best_neighbor
             best_z = best_neighbor_z
-            fin = False                      # continuar buscando
-
+            fin = False
     return B, best_z
 
 
 # ─────────────────────────────────────────────
-# MAIN - EXACTAMENTE COMO PEDISTE
+# MAIN
 # ─────────────────────────────────────────────
 def main():
     results = {}
@@ -410,7 +402,7 @@ def main():
         # 2. Iniciar contador de tiempo y Local Search
         t0 = time.time()
         improved_sequence, total_flow = local_search_best_improvement(
-            sequence, jobs, m, offsets_list, TIME_LIMIT_LS
+            sequence, jobs, m, offsets_list, t0
         )
         compute_time_ms = round((time.time() - t0) * 1000)
 

@@ -341,29 +341,23 @@ def write_results_to_excel(results, output_file):
 # ─────────────────────────────────────────────
 # FIRST IMPROVEMENT
 # ─────────────────────────────────────────────
-def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, time_limit_sec=3600):
-    B = list(initial_sequence)           # B ← InitialSolution()
+def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, start_time):
+    B = list(initial_sequence)
     fin = False
-    start_ls = time.time()
 
-    while not fin and (time.time() - start_ls < time_limit_sec):
-        fin = True                       # Asumimos que esta pasada no mejorará
+    while not fin and (time.time() - start_time < 3600):
+        fin = True
         h = 0
-
-        while h < len(B) - 1 and (time.time() - start_ls < time_limit_sec):
-            P = B[:]                     # copia
-            P[h], P[h + 1] = P[h + 1], P[h]   # swap consecutivo = Move(B, h)
-
+        while h < len(B) - 1 and (time.time() - start_time < 3600):
+            P = B[:]
+            P[h], P[h + 1] = P[h + 1], P[h]
             z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
-
-            if z < evaluate_sequence_preciso(B, jobs, m, offsets_list):  # if f(P) < f(B)
-                B = P                    # B ← P
-                fin = False              # se encontró mejora → seguir buscando
-                break                    # salir y reiniciar búsqueda desde el principio
-
+            if z < evaluate_sequence_preciso(B, jobs, m, offsets_list):
+                B = P
+                fin = False
+                break
             h += 1
 
-    # Retornar solución final y su valor objetivo
     final_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
     return B, final_z
 
@@ -402,7 +396,7 @@ def main():
         # 2. Iniciar contador de tiempo y Local Search
         t0 = time.time()
         improved_sequence, total_flow = local_search_first_improvement(
-            sequence, jobs, m, offsets_list, TIME_LIMIT_LS
+            sequence, jobs, m, offsets_list, t0
         )
         compute_time_ms = round((time.time() - t0) * 1000)
 
