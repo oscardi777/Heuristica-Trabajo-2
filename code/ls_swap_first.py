@@ -8,18 +8,18 @@ import pandas as pd
 # PARÁMETROS
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(BestImprovement_LocalSearch).xlsx"
+OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(FirstImprovement_LocalSearch).xlsx"
 
 TIME_LIMIT_PER_BLOCK = 0.01 # Tiempo máximo en segundos por bloque de posiciones
 TIME_LIMIT_LS = 3600  # 1 hora en segundos
 
 INSTANCES = [
-    #"ft06.txt",           "ft06r.txt",
-    #"ft10.txt",           "ft10r.txt",
-    #"ft20.txt",           "ft20r.txt",
+    "ft06.txt",           "ft06r.txt",
+    "ft10.txt",           "ft10r.txt",
+    "ft20.txt",           "ft20r.txt",
     "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
     "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
-    "tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
     #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
     #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
 ]
@@ -407,16 +407,10 @@ def main():
             if op["operation"] == 0:
                 job_start_times[op["job"]] = op["start"]
 
-        results[sheet_name] = (total_flow, compute_time_ms, job_start_times)
-
-        print(f"[LS OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
-
-    if results:
-        write_results_to_excel(results, OUTPUT_FILE)
-        print(f"\nResultados guardados en: {OUTPUT_FILE}")
-    else:
-        print("No se procesó ninguna instancia.")
-
+        sheet_name = inst.replace(".txt", "")
+        single_results = {sheet_name: (total_flow, compute_time_ms, job_start_times)}
+        write_results_to_excel(single_results, OUTPUT_FILE)
+        print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
 
 if __name__ == "__main__":
     main()

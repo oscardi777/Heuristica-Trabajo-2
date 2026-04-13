@@ -13,12 +13,12 @@ OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(Constructivo).xlsx"
 TIME_LIMIT_PER_BLOCK = 0.01 # Tiempo máximo en segundos por bloque de posiciones
 
 INSTANCES = [
-    "ft06.txt",           "ft06r.txt",
-    "ft10.txt",           "ft10r.txt",
-    "ft20.txt",           "ft20r.txt",
-    "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
-    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
-    "tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    #ft06.txt",           "ft06r.txt",
+    #ft10.txt",           "ft10r.txt",
+    #ft20.txt",           "ft20r.txt",
+    #tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
+    #tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
+    #tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
     "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
     "tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
 ]
@@ -365,17 +365,9 @@ def main():
                 job_start_times[op["job"]] = op["start"]
 
         sheet_name = inst.replace(".txt", "")
-        results[sheet_name] = (total_flow, compute_time_ms, job_start_times)
+        single_results = {sheet_name: (total_flow, compute_time_ms, job_start_times)}
+        write_results_to_excel(single_results, OUTPUT_FILE)
         print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
-        os.makedirs("initial solutions", exist_ok=True)
-        with open(f"initial solutions/{sheet_name}.txt", "w") as f:
-            f.write(" ".join(map(str, sequence)))
-        print(f"Se ha guardado la instancia {inst:<40} con exito")
-
-    if results:
-        write_results_to_excel(results, OUTPUT_FILE)
-    else:
-        print("No se procesó ninguna instancia.")
 
 
 if __name__ == "__main__":
