@@ -9,7 +9,9 @@ import random
 # PARÁMETROS
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(SwapFirstANDMixedImprovement).xlsx"
+OUTPUT_FILE_FI   = "resultados\\NWJSSP_OADG_NEH(SwapFirstImprovement).xlsx"
+OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(SwapMixedImprovement).xlsx"
+
 
 TIME_LIMIT_PER_BLOCK = 0.01
 TIME_LIMIT_LS = 3600
@@ -21,9 +23,9 @@ INSTANCES = [
     "ft20.txt",           "ft20r.txt",
     "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
     "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
-    "tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
-    "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
-    "tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
+    #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
+    #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
 ]
 
 
@@ -190,7 +192,7 @@ def write_results_to_excel(results, output_file):
         for sheet_name, (total_flow, compute_time_ms, job_start_times) in results.items():
             df = pd.DataFrame([[total_flow, compute_time_ms], job_start_times])
             df.to_excel(writer, sheet_name=sheet_name, header=False, index=False)
-    print(f"\nResultados guardados en: {output_file}")
+    print(f"Resultados guardados en: {output_file}")
 
 # ─────────────────────────────────────────────
 # FIRST IMPROVEMENT (sin cambios)
@@ -211,7 +213,7 @@ def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, star
                 break
             h += 1
     final_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
-    return B, final_z
+    return B, final_z, time.time()
 
 # ─────────────────────────────────────────────
 # MIXED RANDOMIZED (nueva: muestrea R% posiciones swap aleatorias)
@@ -242,13 +244,11 @@ def local_search_mixed_improvement(initial_sequence, jobs, m, offsets_list, star
             B = best_neighbor
             best_z = best_neighbor_z
             fin = False
-    return B, best_z
+    return B, best_z, time.time()
 
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
-# Solo el MAIN modificado (reemplaza el main actual en neh_ls_swap.py)
-
 def main():
     for inst in INSTANCES:
         filepath = os.path.join(INSTANCES_DIR, inst)
@@ -265,38 +265,41 @@ def main():
 
         # 1. Solución inicial mediante NEH
         sequence = construct_solution(jobs, m)
-        print(f"[NEH] {inst:<30} solución inicial calculada")
+        print(f"\n[NEH] {inst:<30} solución inicial calculada")
 
         offsets_list = precompute_offsets(jobs)
 
+
         # 2. First Improvement desde NEH
-        seq_first, z_first = local_search_first_improvement(sequence, jobs, m, offsets_list, t0)
+        seq_first, z_first, time_finish_FI = local_search_first_improvement(sequence, jobs, m, offsets_list, t0)
 
         # 3. Mixed Randomized desde NEH (independiente)
-        seq_mixed, z_mixed = local_search_mixed_improvement(sequence, jobs, m, offsets_list, t0, MIXED_R)
+        seq_mixed, z_mixed, time_finish_FM = local_search_mixed_improvement(sequence, jobs, m, offsets_list, time_finish_FI, MIXED_R)
 
-        # Elegir la mejor de las dos
-        if z_first < z_mixed:
-            improved_sequence = seq_first
-            total_flow = z_first
-            print(f"[BEST] First Improvement ganó")
-        else:
-            improved_sequence = seq_mixed
-            total_flow = z_mixed
-            print(f"[BEST] Mixed Randomized ganó")
-
-        compute_time_ms = round((time.time() - t0) * 1000)
+        compute_time_ms_FI = round((time_finish_FI - t0) * 1000)
+        
+        compute_time_ms_FM = round((time_finish_FM - t0) * 1000)
 
         # Schedule para Excel
-        _, schedule = evaluate_sequence_preciso(improved_sequence, jobs, m, offsets_list, save_schedule=True)
+        _, schedule = evaluate_sequence_preciso(seq_first, jobs, m, offsets_list, save_schedule=True)
         job_start_times = [None] * n
         for op in schedule:
             if op["operation"] == 0:
                 job_start_times[op["job"]] = op["start"]
 
-        single_results = {sheet_name: (total_flow, compute_time_ms, job_start_times)}
-        write_results_to_excel(single_results, OUTPUT_FILE)
-        print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
+        single_results = {sheet_name: (z_first, compute_time_ms_FI, job_start_times)}
+        write_results_to_excel(single_results, OUTPUT_FILE_FI)
+        print(f"[OK] {inst:<30} Z={z_first:>10}  tiempo={compute_time_ms_FI:>6} ms | First Improvement")
+
+        _, schedule = evaluate_sequence_preciso(seq_mixed, jobs, m, offsets_list, save_schedule=True)
+        job_start_times = [None] * n
+        for op in schedule:
+            if op["operation"] == 0:
+                job_start_times[op["job"]] = op["start"]
+
+        single_results = {sheet_name: (z_mixed, compute_time_ms_FM, job_start_times)}
+        write_results_to_excel(single_results, OUTPUT_FILE_FM)
+        print(f"[OK] {inst:<30} Z={z_mixed:>10}  tiempo={compute_time_ms_FM:>6} ms | Best and First Improvement")
 
 if __name__ == "__main__":
     main()
