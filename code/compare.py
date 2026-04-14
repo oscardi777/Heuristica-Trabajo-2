@@ -145,7 +145,7 @@ def main():
     columns = ["i", "instancia"] + list(all_results.keys())
     df = pd.DataFrame(table, columns=columns)
 
-    output_file = "comparacion_algoritmos.xlsx"
+    output_file = "code\resultados\comparacion_algoritmos.xlsx"
     df.to_excel(output_file, index=False)
 
     print("\n✅ Tabla generada correctamente:\n")
