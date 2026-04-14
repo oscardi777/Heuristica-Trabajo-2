@@ -6,16 +6,21 @@ import random
 
 
 # ─────────────────────────────────────────────
-# PARÁMETROS
+# Archivos
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE_FI   = "resultados\\NWJSSP_OADG_NEH(SwapFirstImprovement).xlsx"
-OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(SwapMixedImprovement).xlsx"
+OUTPUT_FILE_FI   = "resultados\\NWJSSP_OADG_NEH(InsertionFirstImprovement).xlsx"
+OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(InsertionMixedImprovement).xlsx"
 
 
+
+# ─────────────────────────────────────────────
+# Parametros
+# ─────────────────────────────────────────────
 TIME_LIMIT_PER_BLOCK = 0.01
 TIME_LIMIT_LS = 3600
-MIXED_R = 0.2  # porcentaje del vecindario swap para mixed (best-of-R%)
+MIXED_R = 0.8 # Porcentaje del vecindario a visitar para el segundo criterio
+SEED = random.seed(42)
 
 INSTANCES = [
     "ft06.txt",           "ft06r.txt",
@@ -195,25 +200,45 @@ def write_results_to_excel(results, output_file):
     print(f"Resultados guardados en: {output_file}")
 
 # ─────────────────────────────────────────────
+# Generador de vecindarios
+# ─────────────────────────────────────────────
+def generate_insertion_neighbors(sequence):
+    neighbors = []
+    n = len(sequence)
+
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            new_seq = sequence[:]
+            job = new_seq.pop(i)
+            new_seq.insert(j, job)
+            neighbors.append(new_seq)
+
+    return neighbors
+
+# ─────────────────────────────────────────────
 # FIRST IMPROVEMENT
 # ─────────────────────────────────────────────
 def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, start_time):
     B = list(initial_sequence)
+    current_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
+
     fin = False
     while not fin and (time.time() - start_time < 3600):
         fin = True
-        h = 0
-        while h < len(B) - 1 and (time.time() - start_time < 3600):
-            P = B[:]
-            P[h], P[h + 1] = P[h + 1], P[h]
+        neighbors = generate_insertion_neighbors(B)
+        for P in neighbors:
+            if time.time() - start_time >= 3600:
+                break
             z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
-            if z < evaluate_sequence_preciso(B, jobs, m, offsets_list):
+            if z < current_z:
                 B = P
+                current_z = z
                 fin = False
                 break
-            h += 1
-    final_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
-    return B, final_z, time.time()
+
+    return B, current_z, time.time()
 
 # ─────────────────────────────────────────────
 # MIXED RANDOMIZED (nueva: muestrea R% posiciones swap aleatorias)
@@ -221,29 +246,28 @@ def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, star
 def local_search_mixed_improvement(initial_sequence, jobs, m, offsets_list, start_time, R):
     B = list(initial_sequence)
     best_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
+
     fin = False
     while not fin and (time.time() - start_time < 3600):
         fin = True
+        neighbors = generate_insertion_neighbors(B)
+        # sampleo del vecindario
+        k = max(1, int(R * len(neighbors)))
+        sampled_neighbors = random.sample(neighbors, k)
         best_neighbor = None
         best_neighbor_z = float('inf')
-        n_swap = len(B) - 1
-        scan_size = max(1, int(R * n_swap))
-        moves = list(range(n_swap))
-        random.shuffle(moves)                     # aleatorización del vecindario
-        for i in range(scan_size):
+        for P in sampled_neighbors:
             if time.time() - start_time >= 3600:
                 break
-            h = moves[i]
-            P = B[:]
-            P[h], P[h + 1] = P[h + 1], P[h]
             z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
             if z < best_neighbor_z:
                 best_neighbor_z = z
-                best_neighbor = P[:]
+                best_neighbor = P
         if best_neighbor is not None and best_neighbor_z < best_z:
             B = best_neighbor
             best_z = best_neighbor_z
             fin = False
+
     return B, best_z, time.time()
 
 # ─────────────────────────────────────────────
