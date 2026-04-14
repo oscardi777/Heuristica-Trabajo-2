@@ -21,9 +21,9 @@ INSTANCES = [
     "ft20.txt",           "ft20r.txt",
     "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
     "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
-    #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
-    #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
-    #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
+    "tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
+    "tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
 ]
 
 
@@ -247,6 +247,8 @@ def local_search_mixed_improvement(initial_sequence, jobs, m, offsets_list, star
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
+# Solo el MAIN modificado (reemplaza el main actual en neh_ls_swap.py)
+
 def main():
     for inst in INSTANCES:
         filepath = os.path.join(INSTANCES_DIR, inst)
@@ -258,16 +260,19 @@ def main():
         n = len(jobs)
         sheet_name = inst.replace(".txt", "")
 
+        # Timer inicia ANTES de NEH (NEH + First + Mixed <= 1 hora total)
+        t0 = time.time()
+
+        # 1. Solución inicial mediante NEH
         sequence = construct_solution(jobs, m)
         print(f"[NEH] {inst:<30} solución inicial calculada")
 
         offsets_list = precompute_offsets(jobs)
-        t0 = time.time()
 
-        # Primera rama: First Improvement desde NEH
+        # 2. First Improvement desde NEH
         seq_first, z_first = local_search_first_improvement(sequence, jobs, m, offsets_list, t0)
 
-        # Segunda rama: Mixed Randomized desde NEH (independiente)
+        # 3. Mixed Randomized desde NEH (independiente)
         seq_mixed, z_mixed = local_search_mixed_improvement(sequence, jobs, m, offsets_list, t0, MIXED_R)
 
         # Elegir la mejor de las dos
@@ -282,6 +287,7 @@ def main():
 
         compute_time_ms = round((time.time() - t0) * 1000)
 
+        # Schedule para Excel
         _, schedule = evaluate_sequence_preciso(improved_sequence, jobs, m, offsets_list, save_schedule=True)
         job_start_times = [None] * n
         for op in schedule:
@@ -291,7 +297,6 @@ def main():
         single_results = {sheet_name: (total_flow, compute_time_ms, job_start_times)}
         write_results_to_excel(single_results, OUTPUT_FILE)
         print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
-
 
 if __name__ == "__main__":
     main()
