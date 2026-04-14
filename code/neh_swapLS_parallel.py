@@ -2,12 +2,13 @@ import os
 import math
 import time
 import pandas as pd
+from multiprocessing import Pool, cpu_count
 
 # ─────────────────────────────────────────────
-# PARÁMETROS
+# PARÁMETROS (sin cambios)
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(SwapFirstImprovement).xlsx"
+OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(FirstImprovement_LocalSearch).xlsx"
 
 TIME_LIMIT_PER_BLOCK = 0.01
 TIME_LIMIT_LS = 3600
@@ -17,14 +18,14 @@ INSTANCES = [
     "ft10.txt",           "ft10r.txt",
     "ft20.txt",           "ft20r.txt",
     "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
-    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
+    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt"
     #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
     #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
     #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
 ]
 
 # ─────────────────────────────────────────────
-# ESTRUCTURAS (sin cambios)
+# ESTRUCTURAS Y FUNCIONES (sin cambios)
 # ─────────────────────────────────────────────
 class Operation:
     def __init__(self, machine, processing_time):
@@ -188,9 +189,6 @@ def write_results_to_excel(results, output_file):
             df.to_excel(writer, sheet_name=sheet_name, header=False, index=False)
     print(f"\nResultados guardados en: {output_file}")
 
-# ─────────────────────────────────────────────
-# FIRST IMPROVEMENT
-# ─────────────────────────────────────────────
 def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, start_time):
     B = list(initial_sequence)
     fin = False
@@ -210,44 +208,54 @@ def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, star
     return B, final_z
 
 # ─────────────────────────────────────────────
-# MAIN
+# WORKER POR INSTANCIA (paralelizable)
+# ─────────────────────────────────────────────
+def process_instance(inst):
+    filepath = os.path.join(INSTANCES_DIR, inst)
+    if not os.path.exists(filepath):
+        print(f"[SKIP] {inst} — archivo no encontrado")
+        return None
+
+    jobs, m = read_instance(filepath)
+    n = len(jobs)
+    sheet_name = inst.replace(".txt", "")
+
+    t0 = time.time()                          # timer total (NEH + LS = 3600s)
+    sequence = construct_solution(jobs, m)    # siempre calcula NEH
+    offsets_list = precompute_offsets(jobs)
+
+    improved_sequence, total_flow = local_search_first_improvement(
+        sequence, jobs, m, offsets_list, t0
+    )
+
+    compute_time_ms = round((time.time() - t0) * 1000)
+
+    _, schedule = evaluate_sequence_preciso(improved_sequence, jobs, m, offsets_list, save_schedule=True)
+    job_start_times = [None] * n
+    for op in schedule:
+        if op["operation"] == 0:
+            job_start_times[op["job"]] = op["start"]
+
+    return {sheet_name: (total_flow, compute_time_ms, job_start_times)}
+
+# ─────────────────────────────────────────────
+# MAIN PARALELO
 # ─────────────────────────────────────────────
 def main():
-    for inst in INSTANCES:
-        filepath = os.path.join(INSTANCES_DIR, inst)
-        if not os.path.exists(filepath):
-            print(f"[SKIP] {inst} — archivo no encontrado")
-            continue
+    num_processes = min(16, cpu_count())
+    print(f"Ejecutando en paralelo con {num_processes} procesos...")
 
-        jobs, m = read_instance(filepath)
-        n = len(jobs)
-        sheet_name = inst.replace(".txt", "")
+    with Pool(processes=num_processes) as pool:
+        all_results = pool.map(process_instance, INSTANCES)
 
-        # Timer inicia ANTES de NEH (total 1 hora NEH + LS)
-        t0 = time.time()
+    results = {}
+    for res in all_results:
+        if res:
+            results.update(res)
 
-        # Siempre calcula solución inicial (NEH)
-        sequence = construct_solution(jobs, m)
-
-        offsets_list = precompute_offsets(jobs)
-
-        # Mejora con first-improvement swap (respeta tiempo restante)
-        improved_sequence, total_flow = local_search_first_improvement(
-            sequence, jobs, m, offsets_list, t0
-        )
-
-        compute_time_ms = round((time.time() - t0) * 1000)
-
-        # Schedule para Excel
-        _, schedule = evaluate_sequence_preciso(improved_sequence, jobs, m, offsets_list, save_schedule=True)
-        job_start_times = [None] * n
-        for op in schedule:
-            if op["operation"] == 0:
-                job_start_times[op["job"]] = op["start"]
-
-        single_results = {sheet_name: (total_flow, compute_time_ms, job_start_times)}
-        write_results_to_excel(single_results, OUTPUT_FILE)
-        print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
+    if results:
+        write_results_to_excel(results, OUTPUT_FILE)
+        print("¡Ejecución paralela finalizada!")
 
 
 if __name__ == "__main__":
