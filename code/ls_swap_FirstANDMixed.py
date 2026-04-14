@@ -1,0 +1,297 @@
+import os
+import math
+import time
+import pandas as pd
+import random
+
+
+# ─────────────────────────────────────────────
+# PARÁMETROS
+# ─────────────────────────────────────────────
+INSTANCES_DIR = "NWJSSP Instances"
+OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(SwapFirstANDMixedImprovement).xlsx"
+
+TIME_LIMIT_PER_BLOCK = 0.01
+TIME_LIMIT_LS = 3600
+MIXED_R = 0.2  # porcentaje del vecindario swap para mixed (best-of-R%)
+
+INSTANCES = [
+    "ft06.txt",           "ft06r.txt",
+    "ft10.txt",           "ft10r.txt",
+    "ft20.txt",           "ft20r.txt",
+    "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
+    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
+    #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
+    #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
+]
+
+
+# ─────────────────────────────────────────────
+# ESTRUCTURAS DE DATOS
+# ─────────────────────────────────────────────
+class Operation:
+    def __init__(self, machine, processing_time):
+        self.machine = machine
+        self.p = processing_time
+
+class Job:
+    def __init__(self, operations, release):
+        self.operations = operations
+        self.release = release
+
+class Machine:
+    def __init__(self, id: int):
+        self.id = id
+        self.intervals: list[tuple[int, int]] = []
+
+    def add(self, b: int, e: int):
+        self.intervals.append((b, e))
+
+    def max_end_before(self, threshold: int):
+        max_e = 0
+        for b, e in self.intervals:
+            if b < threshold:
+                max_e = max(max_e, e)
+        return max_e
+
+def read_instance(file):
+    with open(file) as f:
+        n, m = map(int, f.readline().split())
+        jobs = []
+        for _ in range(n):
+            data = list(map(int, f.readline().split()))
+            operations = [Operation(data[2*i], data[2*i + 1]) for i in range(m)]
+            jobs.append(Job(operations, release=data[-1]))
+    return jobs, m
+
+def precompute_offsets(jobs):
+    return [[0] * len(job.operations) if len(job.operations) <= 1 else 
+            [0] + [sum(op.p for op in job.operations[:u+1]) for u in range(len(job.operations)-1)]
+            for job in jobs]
+
+def compute_offsets(job):
+    offsets = [0] * len(job.operations)
+    total = 0
+    for u, op in enumerate(job.operations[:-1]):
+        total += op.p
+        offsets[u + 1] = total
+    return offsets
+
+def find_start(job, machine_available, offsets):
+    start = job.release
+    for u, op in enumerate(job.operations):
+        required = machine_available[op.machine] - offsets[u]
+        if required > start:
+            start = required
+    return start
+
+def schedule_job(job, machine_available, job_id, schedule):
+    offsets = compute_offsets(job)
+    start = find_start(job, machine_available, offsets)
+    completion = 0
+    for u, op in enumerate(job.operations):
+        begin = start + offsets[u]
+        finish = begin + op.p
+        machine_available[op.machine] = finish
+        if schedule is not None:
+            schedule.append({"job": job_id, "machine": op.machine, "operation": u, "start": begin, "finish": finish})
+        completion = finish
+    return completion
+
+def evaluate_sequence(sequence, jobs, m, save_schedule=False):
+    machine_available = [0] * m
+    total_flow = 0
+    schedule = [] if save_schedule else None
+    for j in sequence:
+        Cj = schedule_job(jobs[j], machine_available, j, schedule)
+        total_flow += Cj
+    return (total_flow, schedule) if save_schedule else total_flow
+
+def evaluate_insertion(sequence, j, pos, jobs, m):
+    machine_available = [0] * m
+    total_flow = 0
+    for idx in range(pos):
+        total_flow += schedule_job(jobs[sequence[idx]], machine_available, sequence[idx], None)
+    total_flow += schedule_job(jobs[j], machine_available, j, None)
+    for idx in range(pos, len(sequence)):
+        total_flow += schedule_job(jobs[sequence[idx]], machine_available, sequence[idx], None)
+    return total_flow
+
+def find_start_preciso(job, machines, offsets):
+    start = job.release
+    while True:
+        max_candidate = start
+        feasible = True
+        for u, op in enumerate(job.operations):
+            b_op = start + offsets[u]
+            e_op = b_op + op.p
+            max_ek = machines[op.machine].max_end_before(e_op)
+            if max_ek > b_op:
+                feasible = False
+                candidate = max_ek - offsets[u]
+                max_candidate = max(max_candidate, candidate)
+        if feasible:
+            return start
+        start = max_candidate
+
+def schedule_job_preciso(job, machines, job_id, schedule, offsets):
+    start = find_start_preciso(job, machines, offsets)
+    completion = 0
+    for u, op in enumerate(job.operations):
+        begin = start + offsets[u]
+        finish = begin + op.p
+        machines[op.machine].add(begin, finish)
+        if schedule is not None:
+            schedule.append({"job": job_id, "machine": machines[op.machine].id, "operation": u, "start": begin, "finish": finish})
+        completion = finish
+    return completion
+
+def evaluate_sequence_preciso(sequence, jobs, m, offsets_list, save_schedule=False):
+    machines = [Machine(i) for i in range(m)]
+    total_flow = 0
+    schedule = [] if save_schedule else None
+    for j in sequence:
+        total_flow += schedule_job_preciso(jobs[j], machines, j, schedule, offsets_list[j])
+    return (total_flow, schedule) if save_schedule else total_flow
+
+def find_best_insertion(sequence, j, jobs, m, block_size, time_limit):
+    n_pos = len(sequence) + 1
+    best_pos = 0
+    best_value = float("inf")
+    pos = 0
+    while pos < n_pos:
+        end_block = min(pos + block_size, n_pos)
+        t_bloque = time.time()
+        for p in range(pos, end_block):
+            if time.time() - t_bloque > time_limit:
+                break
+            value = evaluate_insertion(sequence, j, p, jobs, m)
+            if value < best_value:
+                best_value = value
+                best_pos = p
+        pos = end_block
+    return best_pos, best_value
+
+def construct_solution(jobs, m):
+    n = len(jobs)
+    block_size = max(10, int(math.sqrt(n)))
+    order = sorted(range(n), key=lambda j: jobs[j].release + sum(op.p for op in jobs[j].operations), reverse=True)
+    sequence = []
+    for j in order:
+        best_pos, _ = find_best_insertion(sequence, j, jobs, m, block_size, TIME_LIMIT_PER_BLOCK)
+        sequence.insert(best_pos, j)
+    return sequence
+
+def write_results_to_excel(results, output_file):
+    os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else ".", exist_ok=True)
+    writer_kwargs = dict(engine="openpyxl", mode="a", if_sheet_exists="replace") if os.path.exists(output_file) else dict(engine="openpyxl", mode="w")
+    with pd.ExcelWriter(output_file, **writer_kwargs) as writer:
+        for sheet_name, (total_flow, compute_time_ms, job_start_times) in results.items():
+            df = pd.DataFrame([[total_flow, compute_time_ms], job_start_times])
+            df.to_excel(writer, sheet_name=sheet_name, header=False, index=False)
+    print(f"\nResultados guardados en: {output_file}")
+
+# ─────────────────────────────────────────────
+# FIRST IMPROVEMENT (sin cambios)
+# ─────────────────────────────────────────────
+def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, start_time):
+    B = list(initial_sequence)
+    fin = False
+    while not fin and (time.time() - start_time < 3600):
+        fin = True
+        h = 0
+        while h < len(B) - 1 and (time.time() - start_time < 3600):
+            P = B[:]
+            P[h], P[h + 1] = P[h + 1], P[h]
+            z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
+            if z < evaluate_sequence_preciso(B, jobs, m, offsets_list):
+                B = P
+                fin = False
+                break
+            h += 1
+    final_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
+    return B, final_z
+
+# ─────────────────────────────────────────────
+# MIXED RANDOMIZED (nueva: muestrea R% posiciones swap aleatorias)
+# ─────────────────────────────────────────────
+def local_search_mixed_improvement(initial_sequence, jobs, m, offsets_list, start_time, R):
+    B = list(initial_sequence)
+    best_z = evaluate_sequence_preciso(B, jobs, m, offsets_list)
+    fin = False
+    while not fin and (time.time() - start_time < 3600):
+        fin = True
+        best_neighbor = None
+        best_neighbor_z = float('inf')
+        n_swap = len(B) - 1
+        scan_size = max(1, int(R * n_swap))
+        moves = list(range(n_swap))
+        random.shuffle(moves)                     # aleatorización del vecindario
+        for i in range(scan_size):
+            if time.time() - start_time >= 3600:
+                break
+            h = moves[i]
+            P = B[:]
+            P[h], P[h + 1] = P[h + 1], P[h]
+            z = evaluate_sequence_preciso(P, jobs, m, offsets_list)
+            if z < best_neighbor_z:
+                best_neighbor_z = z
+                best_neighbor = P[:]
+        if best_neighbor is not None and best_neighbor_z < best_z:
+            B = best_neighbor
+            best_z = best_neighbor_z
+            fin = False
+    return B, best_z
+
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
+def main():
+    for inst in INSTANCES:
+        filepath = os.path.join(INSTANCES_DIR, inst)
+        if not os.path.exists(filepath):
+            print(f"[SKIP] {inst} — archivo no encontrado")
+            continue
+
+        jobs, m = read_instance(filepath)
+        n = len(jobs)
+        sheet_name = inst.replace(".txt", "")
+
+        sequence = construct_solution(jobs, m)
+        print(f"[NEH] {inst:<30} solución inicial calculada")
+
+        offsets_list = precompute_offsets(jobs)
+        t0 = time.time()
+
+        # Primera rama: First Improvement desde NEH
+        seq_first, z_first = local_search_first_improvement(sequence, jobs, m, offsets_list, t0)
+
+        # Segunda rama: Mixed Randomized desde NEH (independiente)
+        seq_mixed, z_mixed = local_search_mixed_improvement(sequence, jobs, m, offsets_list, t0, MIXED_R)
+
+        # Elegir la mejor de las dos
+        if z_first < z_mixed:
+            improved_sequence = seq_first
+            total_flow = z_first
+            print(f"[BEST] First Improvement ganó")
+        else:
+            improved_sequence = seq_mixed
+            total_flow = z_mixed
+            print(f"[BEST] Mixed Randomized ganó")
+
+        compute_time_ms = round((time.time() - t0) * 1000)
+
+        _, schedule = evaluate_sequence_preciso(improved_sequence, jobs, m, offsets_list, save_schedule=True)
+        job_start_times = [None] * n
+        for op in schedule:
+            if op["operation"] == 0:
+                job_start_times[op["job"]] = op["start"]
+
+        single_results = {sheet_name: (total_flow, compute_time_ms, job_start_times)}
+        write_results_to_excel(single_results, OUTPUT_FILE)
+        print(f"[OK] {inst:<30} Z={total_flow:>10}  tiempo={compute_time_ms:>6} ms")
+
+
+if __name__ == "__main__":
+    main()
