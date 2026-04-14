@@ -5,10 +5,10 @@ import pandas as pd
 from multiprocessing import Pool, cpu_count
 
 # ─────────────────────────────────────────────
-# PARÁMETROS (sin cambios)
+# PARÁMETROS
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(FirstImprovement_LocalSearch).xlsx"
+OUTPUT_FILE   = "resultados\\NWJSSP_OADG_NEH(SwapFirstImprovement)_PL.xlsx"
 
 TIME_LIMIT_PER_BLOCK = 0.01
 TIME_LIMIT_LS = 3600
@@ -18,14 +18,14 @@ INSTANCES = [
     "ft10.txt",           "ft10r.txt",
     "ft20.txt",           "ft20r.txt",
     "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
-    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt"
+    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
     #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
     #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
     #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
 ]
 
 # ─────────────────────────────────────────────
-# ESTRUCTURAS Y FUNCIONES (sin cambios)
+# ESTRUCTURAS Y FUNCIONES
 # ─────────────────────────────────────────────
 class Operation:
     def __init__(self, machine, processing_time):
@@ -239,10 +239,10 @@ def process_instance(inst):
     return {sheet_name: (total_flow, compute_time_ms, job_start_times)}
 
 # ─────────────────────────────────────────────
-# MAIN PARALELO
+# MAIN PARALELO 
 # ─────────────────────────────────────────────
 def main():
-    num_processes = min(16, cpu_count())
+    num_processes = min(6, cpu_count())   # Cambia 6 por 4, 8 o lo que prefieras
     print(f"Ejecutando en paralelo con {num_processes} procesos...")
 
     with Pool(processes=num_processes) as pool:
