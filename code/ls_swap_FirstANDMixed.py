@@ -269,12 +269,13 @@ def main():
 
         offsets_list = precompute_offsets(jobs)
 
-
         # 2. First Improvement desde NEH
         seq_first, z_first, time_finish_FI = local_search_first_improvement(sequence, jobs, m, offsets_list, t0)
 
+        time_start = time.time()
+
         # 3. Mixed Randomized desde NEH (independiente)
-        seq_mixed, z_mixed, time_finish_FM = local_search_mixed_improvement(sequence, jobs, m, offsets_list, time_finish_FI, MIXED_R)
+        seq_mixed, z_mixed, time_finish_FM = local_search_mixed_improvement(sequence, jobs, m, offsets_list, time_start, MIXED_R)
 
         compute_time_ms_FI = round((time_finish_FI - t0) * 1000)
         
