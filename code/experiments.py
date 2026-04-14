@@ -2,8 +2,7 @@ import os
 import time
 import pandas as pd
 
-# IMPORTAR TODO TU SCRIPT
-from ls_swap_FirstANDMixed import (
+from ls_insertion_FirstADNMixed import (
     read_instance,
     construct_solution,
     precompute_offsets,
@@ -22,7 +21,7 @@ LB_FILE = "lb.txt"
 # Valores de R a testear
 MIXED_R_VALUES = [0.1, 0.2, 0.4, 0.6, 0.8]
 
-OUTPUT_FILE = "resultados\\experiment.csv"
+OUTPUT_FILE = "resultados\\experiment_insertion.csv"
 
 TIME_LIMIT_GLOBAL = 3600
 
