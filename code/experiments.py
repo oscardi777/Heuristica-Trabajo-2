@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 
-from ls_insertion_FirstADNMixed import (
+from code.ls_insertionUP_FirstADNMixed import (
     read_instance,
     construct_solution,
     precompute_offsets,

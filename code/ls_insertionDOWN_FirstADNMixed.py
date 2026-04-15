@@ -4,12 +4,15 @@ import time
 import pandas as pd
 import random
 
+
 # ─────────────────────────────────────────────
-# ARCHIVOS
+# Archivos
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE_FI   = "resultados\\NWJSSP_OADG_NEH(SwapFirstImprovement).xlsx"
-OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(SwapMixedImprovement).xlsx"
+OUTPUT_FILE_FI   = "resultados\\NWJSSP_OADG_NEH(InsertionDOWNFirstImprovement).xlsx"
+OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(InsertionDOWNMixedImprovement).xlsx"
+
+
 
 # ─────────────────────────────────────────────
 # Parametros
@@ -25,9 +28,10 @@ INSTANCES = [
     #"ft20.txt",           "ft20r.txt",
     #"tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
     "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
-    #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    "tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
     "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
 ]
+
 
 
 # ─────────────────────────────────────────────
@@ -198,13 +202,14 @@ def write_results_to_excel(results, output_file):
 # ─────────────────────────────────────────────
 # Generador de vecindarios
 # ─────────────────────────────────────────────
-def generate_swap_neighbors(sequence):
+def generate_insertion_down_neighbors(sequence):
     neighbors = []
     n = len(sequence)
     for i in range(n):
-        for j in range(i + 1, n):             # solo i < j → sin duplicados
+        for j in range(i + 1, n):
             new_seq = sequence[:]
-            new_seq[i], new_seq[j] = new_seq[j], new_seq[i]
+            job = new_seq.pop(i)
+            new_seq.insert(j, job)
             neighbors.append(new_seq)
     return neighbors
 
@@ -218,7 +223,7 @@ def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, star
     fin = False
     while not fin and (time.time() - start_time < 3600):
         fin = True
-        neighbors = generate_swap_neighbors(B)
+        neighbors = generate_insertion_down_neighbors(B)
         for P in neighbors:
             if time.time() - start_time >= 3600:
                 break
@@ -228,6 +233,7 @@ def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, star
                 current_z = z
                 fin = False
                 break
+
     return B, current_z, time.time()
 
 # ─────────────────────────────────────────────
@@ -240,7 +246,8 @@ def local_search_mixed_improvement(initial_sequence, jobs, m, offsets_list, star
     fin = False
     while not fin and (time.time() - start_time < 3600):
         fin = True
-        neighbors = generate_swap_neighbors(B)
+        neighbors = generate_insertion_down_neighbors(B)
+        # sampleo del vecindario
         k = max(1, int(R * len(neighbors)))
         sampled_neighbors = random.sample(neighbors, k)
         best_neighbor = None
@@ -256,6 +263,7 @@ def local_search_mixed_improvement(initial_sequence, jobs, m, offsets_list, star
             B = best_neighbor
             best_z = best_neighbor_z
             fin = False
+
     return B, best_z, time.time()
 
 # ─────────────────────────────────────────────
@@ -272,7 +280,7 @@ def main():
         n = len(jobs)
         sheet_name = inst.replace(".txt", "")
 
-        # Timer inicia ANTES de NEH (NEH + First + Mixed <= 1 hora total)
+        # Timer inicia ANTES de NEH
         t0 = time.time()
 
         # 1. Solución inicial mediante NEH

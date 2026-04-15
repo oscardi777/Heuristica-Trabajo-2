@@ -9,9 +9,8 @@ import random
 # Archivos
 # ─────────────────────────────────────────────
 INSTANCES_DIR = "NWJSSP Instances"
-OUTPUT_FILE_FI   = "resultados\\NWJSSP_OADG_NEH(InsertionFirstImprovement).xlsx"
-OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(InsertionMixedImprovement).xlsx"
-
+OUTPUT_FILE_FI   = "resultados\\NWJSSP_OADG_NEH(InsertionUPFirstImprovement).xlsx"
+OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(InsertionUPMixedImprovement).xlsx"
 
 
 # ─────────────────────────────────────────────
@@ -19,7 +18,7 @@ OUTPUT_FILE_FM   = "resultados\\NWJSSP_OADG_NEH(InsertionMixedImprovement).xlsx"
 # ─────────────────────────────────────────────
 TIME_LIMIT_PER_BLOCK = 0.01
 TIME_LIMIT_LS = 3600
-MIXED_R = 0.8 # Porcentaje del vecindario a visitar para el segundo criterio
+MIXED_R = 0.2 # Porcentaje del vecindario a visitar para el segundo criterio
 SEED = random.seed(42)
 
 INSTANCES = [
@@ -27,10 +26,9 @@ INSTANCES = [
     #"ft10.txt",           "ft10r.txt",
     #"ft20.txt",           "ft20r.txt",
     #"tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
-    #"tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
-    #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
-    #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
-    #"tai_j1000_m100_1.txt", "tai_j1000_m100_1r.txt"
+    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
+    "tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
 ]
 
 
@@ -202,19 +200,15 @@ def write_results_to_excel(results, output_file):
 # ─────────────────────────────────────────────
 # Generador de vecindarios
 # ─────────────────────────────────────────────
-def generate_insertion_neighbors(sequence):
+def generate_insertion_up_neighbors(sequence):
     neighbors = []
     n = len(sequence)
-
     for i in range(n):
-        for j in range(n):
-            if i == j:
-                continue
+        for j in range(i):
             new_seq = sequence[:]
             job = new_seq.pop(i)
             new_seq.insert(j, job)
             neighbors.append(new_seq)
-
     return neighbors
 
 # ─────────────────────────────────────────────
@@ -227,7 +221,7 @@ def local_search_first_improvement(initial_sequence, jobs, m, offsets_list, star
     fin = False
     while not fin and (time.time() - start_time < 3600):
         fin = True
-        neighbors = generate_insertion_neighbors(B)
+        neighbors = generate_insertion_up_neighbors(B)
         for P in neighbors:
             if time.time() - start_time >= 3600:
                 break
@@ -250,7 +244,7 @@ def local_search_mixed_improvement(initial_sequence, jobs, m, offsets_list, star
     fin = False
     while not fin and (time.time() - start_time < 3600):
         fin = True
-        neighbors = generate_insertion_neighbors(B)
+        neighbors = generate_insertion_up_neighbors(B)
         # sampleo del vecindario
         k = max(1, int(R * len(neighbors)))
         sampled_neighbors = random.sample(neighbors, k)
