@@ -23,10 +23,10 @@ MIXED_R = 0.8 # Porcentaje del vecindario a visitar para el segundo criterio
 SEED = random.seed(42)
 
 INSTANCES = [
-    "ft06.txt",           "ft06r.txt",
-    "ft10.txt",           "ft10r.txt",
-    "ft20.txt",           "ft20r.txt",
-    "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
+    #"ft06.txt",           "ft06r.txt",
+    #"ft10.txt",           "ft10r.txt",
+    #"ft20.txt",           "ft20r.txt",
+    #"tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
     #"tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
     #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
     #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
@@ -284,7 +284,7 @@ def main():
         n = len(jobs)
         sheet_name = inst.replace(".txt", "")
 
-        # Timer inicia ANTES de NEH (NEH + First + Mixed <= 1 hora total)
+        # Timer inicia ANTES de NEH
         t0 = time.time()
 
         # 1. Solución inicial mediante NEH
@@ -293,16 +293,19 @@ def main():
 
         offsets_list = precompute_offsets(jobs)
 
+        time_start_FI = time.time()
 
         # 2. First Improvement desde NEH
         seq_first, z_first, time_finish_FI = local_search_first_improvement(sequence, jobs, m, offsets_list, t0)
 
+        time_start_FM = time.time()
+
         # 3. Mixed Randomized desde NEH (independiente)
-        seq_mixed, z_mixed, time_finish_FM = local_search_mixed_improvement(sequence, jobs, m, offsets_list, time_finish_FI, MIXED_R)
+        seq_mixed, z_mixed, time_finish_FM = local_search_mixed_improvement(sequence, jobs, m, offsets_list, time_start_FM, MIXED_R)
 
         compute_time_ms_FI = round((time_finish_FI - t0) * 1000)
         
-        compute_time_ms_FM = round((time_finish_FM - t0) * 1000)
+        compute_time_ms_FM = round((time_finish_FM - (time_finish_FI - time_start_FI) - t0) * 1000)
 
         # Schedule para Excel
         _, schedule = evaluate_sequence_preciso(seq_first, jobs, m, offsets_list, save_schedule=True)
