@@ -9,9 +9,15 @@ from ls_swap_FirstANDMixed import (
     local_search_first_improvement,
     local_search_mixed_improvement,
     evaluate_sequence_preciso,
-    INSTANCES,
     INSTANCES_DIR
 )
+
+INSTANCES = [
+    "ft06.txt",           "ft06r.txt",
+    "ft10.txt",           "ft10r.txt",
+    "ft20.txt",           "ft20r.txt",
+    "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
+]
 
 # ─────────────────────────────────────────────
 # PARÁMETROS EXPERIMENTO
