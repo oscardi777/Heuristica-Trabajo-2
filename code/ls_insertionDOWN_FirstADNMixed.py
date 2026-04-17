@@ -23,13 +23,13 @@ MIXED_R = 0.2 # Porcentaje del vecindario a visitar para el segundo criterio
 SEED = random.seed(42)
 
 INSTANCES = [
-    #"ft06.txt",           "ft06r.txt",
-    #"ft10.txt",           "ft10r.txt",
-    #"ft20.txt",           "ft20r.txt",
-    #"tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
-    "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
-    "tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
-    "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
+    "ft06.txt",           "ft06r.txt",
+    "ft10.txt",           "ft10r.txt",
+    "ft20.txt",           "ft20r.txt",
+    "tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
+    #"tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
+    #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
+    #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
 ]
 
 

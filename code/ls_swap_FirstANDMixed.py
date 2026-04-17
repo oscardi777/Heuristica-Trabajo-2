@@ -26,7 +26,7 @@ INSTANCES = [
     #"tai_j10_m10_1.txt",    "tai_j10_m10_1r.txt",
     "tai_j100_m10_1.txt",   "tai_j100_m10_1r.txt",
     #"tai_j100_m100_1.txt",  "tai_j100_m100_1r.txt",
-    "tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
+    #"tai_j1000_m10_1.txt",  "tai_j1000_m10_1r.txt",
 ]
 
 
