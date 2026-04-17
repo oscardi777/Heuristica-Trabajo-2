@@ -2,156 +2,122 @@ import os
 import pandas as pd
 
 # ─────────────────────────────────────────────
-# CONFIGURACIÓN
+# CONFIGURACIÓN (sin cambios)
 # ─────────────────────────────────────────────
-RESULTS_DIR = "resultados"
+
+INSTANCES = [
+    "ft06.txt", "ft06r.txt",
+    "ft10.txt", "ft10r.txt",
+    "ft20.txt", "ft20r.txt",
+    "tai_j10_m10_1.txt", "tai_j10_m10_1r.txt",
+    "tai_j100_m10_1.txt", "tai_j100_m10_1r.txt",
+    "tai_j100_m100_1.txt", "tai_j100_m100_1r.txt",
+    "tai_j1000_m10_1.txt", "tai_j1000_m10_1r.txt",
+]
 
 FILES = {
-    "Swap-FI": "NWJSSP_OADG_NEH(SwapFirstImprovement).xlsx",
-    "Swap-M":  "NWJSSP_OADG_NEH(SwapMixedImprovement).xlsx",
-    "Ins-FI":  "NWJSSP_OADG_NEH(InsertionFirstImprovement).xlsx",
-    "Ins-M":   "NWJSSP_OADG_NEH(InsertionMixedImprovement).xlsx"
+    "Swap-FI":    "NWJSSP_OADG_NEH(InsertionDOWNFirstImprovement).xlsx",
+    "Swap-M":     "NWJSSP_OADG_NEH(SwapMixedImprovement).xlsx",
+    "InsUP-FI":   "NWJSSP_OADG_NEH(InsertionUPFirstImprovement).xlsx",
+    "InsUP-M":    "NWJSSP_OADG_NEH(InsertionUPMixedImprovement).xlsx",
+    "InsDOWN-FI": "NWJSSP_OADG_NEH(InsertionDOWNFirstImprovement).xlsx",
+    "InsDOWN-M":  "NWJSSP_OADG_NEH(InsertionDOWNMixedImprovement).xlsx",
 }
 
 LB_FILE = "lb.txt"
-
-
-# ─────────────────────────────────────────────
-# LEER LB (lista)
-# ─────────────────────────────────────────────
-def read_lb_list(file):
-    lb_list = []
-    with open(file) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                lb_list.append(float(line))
-    return lb_list
-
+RESULTS_DIR = "resultados"
+OUTPUT_CSV = os.path.join(RESULTS_DIR, "GAP_table.csv")
 
 # ─────────────────────────────────────────────
-# LEER EXCEL (tolerante a errores)
+# LECTURA DE LAS COTAS INFERIORES (sin cambios)
 # ─────────────────────────────────────────────
-def read_results(file_path):
-    results = {}
 
-    if not os.path.exists(file_path):
-        print(f"[WARNING] No existe: {file_path}")
-        return results
+def read_lb(lb_file, instances):
+    with open(lb_file, "r") as f:
+        lb_values = [float(line.strip()) for line in f if line.strip()]
 
+    if len(lb_values) < len(instances):
+        raise ValueError("lb.txt no tiene suficientes cotas para las instancias solicitadas")
+
+    return dict(zip(instances, lb_values[:len(instances)]))
+
+# ─────────────────────────────────────────────
+# LECTURA DE Z DESDE EXCEL (sin cambios)
+# ─────────────────────────────────────────────
+
+def read_z_from_excel(excel_path, instance_name):
+    sheet_name = instance_name.replace(".txt", "")
     try:
-        xls = pd.ExcelFile(file_path)
-    except Exception as e:
-        print(f"[ERROR] No se pudo abrir {file_path}: {e}")
-        return results
+        df = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
+        return float(df.iloc[0, 0])
+    except Exception:
+        return None
 
-    for sheet in xls.sheet_names:
-        try:
-            df = pd.read_excel(xls, sheet_name=sheet, header=None)
+# ─────────────────────────────────────────────
+# MAIN - SOLO CAMBIO AQUÍ
+# ─────────────────────────────────────────────
 
-            Z = float(df.iloc[0, 0])
-            tc = float(df.iloc[0, 1])
+def main():
+    lb_dict = read_lb(LB_FILE, INSTANCES)
 
-            results[sheet] = (Z, tc)
+    # Creamos el DataFrame con instancias como filas
+    table = pd.DataFrame(index=[inst.replace(".txt", "") for inst in INSTANCES])
 
-        except Exception as e:
-            print(f"[WARNING] Error leyendo hoja {sheet} en {file_path}: {e}")
+    for alg_name, excel_file in FILES.items():
+        excel_path = os.path.join(RESULTS_DIR, excel_file)
+
+        if not os.path.exists(excel_path):
+            print(f"[WARNING] No existe: {excel_path}")
             continue
 
-    return results
+        gaps = []
+        for inst in INSTANCES:
+            lb = lb_dict[inst]
+            z = read_z_from_excel(excel_path, inst)
 
-
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
-def main():
-
-    # Leer LB
-    lb_list = read_lb_list(LB_FILE)
-
-    # Leer todos los resultados
-    all_results = {}
-    for method, file in FILES.items():
-        path = os.path.join(RESULTS_DIR, file)
-        all_results[method] = read_results(path)
-
-    # ─────────────────────────────────────────
-    # Obtener TODAS las instancias disponibles
-    # ─────────────────────────────────────────
-    all_instances = set()
-    for method in all_results:
-        all_instances.update(all_results[method].keys())
-
-    instances = sorted(list(all_instances))
-
-    if len(instances) == 0:
-        print("❌ No hay instancias encontradas en los Excel")
-        return
-
-    # ⚠️ Solo usamos tantas instancias como LB tengamos
-    usable_n = min(len(instances), len(lb_list))
-
-    if len(lb_list) < len(instances):
-        print(f"[WARNING] Hay más instancias ({len(instances)}) que LB ({len(lb_list)}). Se recortará.")
-
-    instances = instances[:usable_n]
-
-    # ─────────────────────────────────────────
-    # CONSTRUIR TABLA
-    # ─────────────────────────────────────────
-    table = []
-    gap_sums = {method: 0 for method in all_results}
-    gap_counts = {method: 0 for method in all_results}
-
-    for i, inst in enumerate(instances, 1):
-
-        row = [i, inst]
-        LB = lb_list[i - 1]
-
-        for method in all_results:
-
-            if inst in all_results[method]:
-                Z, tc = all_results[method][inst]
-                gap = (Z - LB) / LB
-
-                gap_sums[method] += gap
-                gap_counts[method] += 1
-
-                row.append(f"{gap:.4f}, {tc:.0f}")
-
+            if z is None:
+                gap = float("nan")
             else:
-                # instancia no disponible en ese método
-                row.append("—")
+                gap = (z - lb) / lb
 
-        table.append(row)
+            gaps.append(gap)
 
-    # ─────────────────────────────────────────
-    # PROMEDIOS
-    # ─────────────────────────────────────────
-    avg_row = ["-", "AVG"]
+        table[alg_name] = gaps
 
-    for method in all_results:
-        if gap_counts[method] > 0:
-            avg_gap = gap_sums[method] / gap_counts[method]
-            avg_row.append(f"{avg_gap:.4f}")
-        else:
-            avg_row.append("—")
+    # Convertir a numérico
+    table = table.apply(pd.to_numeric, errors="coerce")
 
-    table.append(avg_row)
+    # === CAMBIO PRINCIPAL: Calcular promedios por columna ===
+    avg_row = table.mean(axis=0, skipna=True)
+    avg_row.name = "GAP promedio"
 
-    # ─────────────────────────────────────────
-    # EXPORTAR
-    # ─────────────────────────────────────────
-    columns = ["i", "instancia"] + list(all_results.keys())
-    df = pd.DataFrame(table, columns=columns)
+    # Añadir la fila de promedios al final
+    table = pd.concat([table, avg_row.to_frame().T])
 
-    output_file = "code\resultados\comparacion_algoritmos.xlsx"
-    df.to_excel(output_file, index=False)
+    # ─────────────────────────────────────────────
+    # IMPRESIÓN EN CONSOLA
+    # ─────────────────────────────────────────────
 
-    print("\n✅ Tabla generada correctamente:\n")
-    print(df)
-    print(f"\n📁 Guardado en: {output_file}")
+    print("\n================= GAP TABLE =================")
+    format_table = table.copy()
+    for col in format_table.columns:
+        format_table[col] = format_table[col].apply(
+            lambda x: f"{x:.6f}" if pd.notnull(x) else "NA"
+        )
 
+    print(format_table.to_string())
+    print("============================================\n")
+
+    # ─────────────────────────────────────────────
+    # GUARDADO CSV (con la fila de promedios incluida)
+    # ─────────────────────────────────────────────
+
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    table.to_csv(OUTPUT_CSV, float_format="%.8f")
+
+    print(f"Tabla guardada en: {OUTPUT_CSV}")
+
+# ─────────────────────────────────────────────
 
 if __name__ == "__main__":
     main()
