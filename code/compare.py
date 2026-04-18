@@ -16,7 +16,7 @@ INSTANCES = [
 ]
 
 FILES = {
-    "Swap-FI":    "NWJSSP_OADG_NEH(InsertionDOWNFirstImprovement).xlsx",
+    "Swap-FI":    "NWJSSP_OADG_NEH(SwapFirstImprovement).xlsx",
     "Swap-M":     "NWJSSP_OADG_NEH(SwapMixedImprovement).xlsx",
     "InsUP-FI":   "NWJSSP_OADG_NEH(InsertionUPFirstImprovement).xlsx",
     "InsUP-M":    "NWJSSP_OADG_NEH(InsertionUPMixedImprovement).xlsx",
